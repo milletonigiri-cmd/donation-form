@@ -72,7 +72,8 @@
     border: 2px solid var(--line); border-radius: 10px; background: #fff;
     outline: none;
   }
-  input:focus { border-color: var(--brand); }
+  input:focus, textarea:focus { border-color: var(--brand); }
+  textarea { width: 100%; padding: 12px 14px; font: inherit; font-size: 1.15rem; color: var(--ink); border: 2px solid var(--line); border-radius: 10px; background: #fff; outline: none; resize: vertical; }
   input:disabled { background: #f3f4f6; color: var(--muted); }
 
   .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
@@ -220,6 +221,25 @@
       <div class="msg" hidden></div>
     </div>
 
+    <div class="field" id="f-deliv" hidden>
+      <div class="q"><span class="n">6</span>收據怎麼領取？</div>
+      <div class="chips two" style="margin-top:0">
+        <button type="button" class="chip" data-dv="自取">自取</button>
+        <button type="button" class="chip" data-dv="寄送">寄送</button>
+      </div>
+      <div id="pickupBox" hidden style="margin-top:16px">
+        <div class="sub">聯絡電話</div>
+        <div class="hint">收據開好後，我們會用這支電話通知您領取</div>
+        <input type="tel" id="phone" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="例如 0912345678">
+      </div>
+      <div id="mailBox" hidden style="margin-top:16px">
+        <div class="sub">寄送地址</div>
+        <div class="hint">請填寫完整地址，含郵遞區號更好</div>
+        <textarea id="addr" rows="3" maxlength="120" autocomplete="street-address" placeholder="例如 408 台中市南屯區○○路 100 號 3 樓"></textarea>
+      </div>
+      <div class="msg" hidden></div>
+    </div>
+
     <button class="primary" id="nextBtn" type="button">下一步：確認資料</button>
     <p style="height:24px"></p>
   </div>
@@ -267,7 +287,7 @@
   const subId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
   let idToken = '', groupId = '', lineName = '';
-  const st = { l5: '', receipt: '', mode: 'single' };
+  const st = { l5: '', receipt: '', mode: 'single', deliv: '' };
 
   function show(id) {
     ['loading', 'form', 'done', 'fatal'].forEach(x => $(x).hidden = x !== id);
@@ -351,6 +371,7 @@
     st.receipt = b.dataset.r;
     document.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x === b));
     $('f-title').hidden = st.receipt !== '需要';
+    $('f-deliv').hidden = st.receipt !== '需要';
     clearErr('f-receipt');
   });
 
@@ -414,6 +435,17 @@
   $('rAdd').onclick = () => { addRow('', ''); updateSum(); };
   $('amount').addEventListener('input', updateSum);
 
+  /* ---------- 收據領取方式 ---------- */
+  document.querySelectorAll('[data-dv]').forEach(b => b.onclick = () => {
+    st.deliv = b.dataset.dv;
+    document.querySelectorAll('[data-dv]').forEach(x => x.classList.toggle('on', x === b));
+    $('pickupBox').hidden = st.deliv !== '自取';
+    $('mailBox').hidden = st.deliv !== '寄送';
+    clearErr('f-deliv');
+  });
+  $('phone').addEventListener('input', () => { $('phone').value = toHalf($('phone').value).replace(/[^\d\-#()\s+]/g, ''); clearErr('f-deliv'); });
+  $('addr').addEventListener('input', () => clearErr('f-deliv'));
+
   function setErr(id, msg) {
     const f = $(id); f.classList.add('bad');
     const m = f.querySelector('.msg'); m.textContent = msg; m.hidden = false;
@@ -433,6 +465,9 @@
       title: st.receipt === '需要' && st.mode === 'single' ? $('title').value.trim() : '',
       receiptMode: st.receipt === '需要' ? st.mode : '',
       receipts: st.receipt === '需要' && st.mode === 'multi' ? readRows().filter(r => r.title || r.amount) : [],
+      deliv: st.receipt === '需要' ? st.deliv : '',
+      phone: st.receipt === '需要' && st.deliv === '自取' ? $('phone').value.trim() : '',
+      addr: st.receipt === '需要' && st.deliv === '寄送' ? $('addr').value.trim() : '',
     };
     const errs = [];
     if (!d.name) errs.push(['f-name', '請填寫捐款芳名，或勾選「不具名」']);
@@ -446,13 +481,18 @@
       else if (d.receipts.some(r => !r.title || r.amount <= 0)) errs.push(['f-title', '每張收據都要填寫抬頭和金額']);
       else if (/^\d+$/.test(d.amount) && sum !== Number(d.amount)) errs.push(['f-title', '各張收據金額合計 ' + fmt(sum) + ' 元，需等於捐款金額 ' + fmt(d.amount) + ' 元']);
     }
+    if (d.receipt === '需要') {
+      if (!d.deliv) errs.push(['f-deliv', '請選擇「自取」或「寄送」']);
+      else if (d.deliv === '自取' && !/^\d{8,12}$/.test(d.phone.replace(/\D/g, ''))) errs.push(['f-deliv', '請填寫正確的聯絡電話']);
+      else if (d.deliv === '寄送' && d.addr.length < 8) errs.push(['f-deliv', '請填寫完整的寄送地址']);
+    }
     return { d, errs };
   }
 
   let pending = null;
   $('nextBtn').onclick = () => {
     const { d, errs } = collect();
-    ['f-name', 'f-amount', 'f-last5', 'f-receipt', 'f-title'].forEach(clearErr);
+    ['f-name', 'f-amount', 'f-last5', 'f-receipt', 'f-title', 'f-deliv'].forEach(clearErr);
     if (errs.length) {
       errs.forEach(e => setErr(e[0], e[1]));
       $(errs[0][0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -469,6 +509,10 @@
       rows[3] = ['收據', '分開 ' + d.receipts.length + ' 張'];
       d.receipts.forEach((r, i) => rows.push(['第 ' + (i + 1) + ' 張', r.title + '\n' + fmt(r.amount) + ' 元']));
     } else if (d.receipt === '需要') rows.push(['收據抬頭', d.title]);
+    if (d.receipt === '需要') {
+      rows.push(['領取方式', d.deliv]);
+      rows.push(d.deliv === '自取' ? ['聯絡電話', d.phone] : ['寄送地址', d.addr]);
+    }
     const dl = $('summary'); dl.innerHTML = '';
     rows.forEach(r => {
       const div = document.createElement('div');
