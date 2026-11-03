@@ -83,6 +83,16 @@
     border: 2px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink);
   }
   .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .sub { font-size: 1rem; font-weight: 700; margin: 0 0 8px; }
+  .rrow { border: 2px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; background: #fffaf5; }
+  .rrow .rh { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 8px; }
+  .rrow .rdel { border: 0; background: none; color: var(--err); font-size: .95rem; font-weight: 600; padding: 4px 6px; }
+  .rrow .lab { font-size: .85rem; color: var(--muted); margin: 0 0 4px; }
+  .rrow input { margin-bottom: 10px; }
+  .rrow input:last-child { margin-bottom: 0; }
+  .addbtn { width: 100%; height: 54px; border: 2px dashed var(--brand); border-radius: 12px; background: #fff; color: var(--brand); font-size: 1.05rem; font-weight: 700; }
+  .rsum { margin-top: 12px; padding: 12px; border-radius: 10px; font-weight: 700; text-align: center; background: var(--brand-soft); }
+  .rsum.ok { background: #e7f6ec; color: var(--ok); }
 
   .check {
     display: flex; align-items: center; gap: 10px; margin-top: 12px;
@@ -110,7 +120,7 @@
   dl div { display: flex; padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 12px; }
   dl div:last-child { border-bottom: none; }
   dt { flex: none; width: 5em; color: var(--muted); }
-  dd { margin: 0; font-weight: 700; font-size: 1.1rem; word-break: break-all; }
+  dd { margin: 0; font-weight: 700; font-size: 1.1rem; word-break: break-all; white-space: pre-line; }
 
   /* 複製區 */
   .copybox { margin-top: 22px; text-align: left; max-width: 520px; }
@@ -191,9 +201,22 @@
     </div>
 
     <div class="field" id="f-title" hidden>
-      <div class="q"><span class="n">5</span>收據抬頭</div>
-      <input type="text" id="title" maxlength="60" autocomplete="off" placeholder="個人姓名或公司、單位名稱">
-      <label class="check"><input type="checkbox" id="same">同捐款芳名</label>
+      <div class="q"><span class="n">5</span>收據要開幾張？</div>
+      <div class="chips two" style="margin-top:0">
+        <button type="button" class="chip on" data-m="single">一張收據</button>
+        <button type="button" class="chip" data-m="multi">分開多張收據</button>
+      </div>
+      <div id="singleBox" style="margin-top:16px">
+        <div class="sub">收據抬頭</div>
+        <input type="text" id="title" maxlength="60" autocomplete="off" placeholder="個人姓名或公司、單位名稱">
+        <label class="check"><input type="checkbox" id="same">同捐款芳名</label>
+      </div>
+      <div id="multiBox" hidden style="margin-top:16px">
+        <div class="hint">請每張分別填寫「抬頭」和「金額」，各張金額加起來要等於捐款金額。</div>
+        <div id="rList"></div>
+        <button type="button" class="addbtn" id="rAdd">＋ 再加一張收據</button>
+        <div class="rsum" id="rSum"></div>
+      </div>
       <div class="msg" hidden></div>
     </div>
 
@@ -244,7 +267,7 @@
   const subId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
   let idToken = '', groupId = '', lineName = '';
-  const st = { l5: '', receipt: '' };
+  const st = { l5: '', receipt: '', mode: 'single' };
 
   function show(id) {
     ['loading', 'form', 'done', 'fatal'].forEach(x => $(x).hidden = x !== id);
@@ -340,6 +363,57 @@
     if (on) $('title').value = $('anon').checked ? '' : $('name').value.trim();
   }
 
+  /* ---------- 多張收據 ---------- */
+  document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+    st.mode = b.dataset.m;
+    document.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b));
+    $('singleBox').hidden = st.mode !== 'single';
+    $('multiBox').hidden = st.mode !== 'multi';
+    if (st.mode === 'multi' && !document.querySelectorAll('.rrow').length) {
+      const nm = $('anon').checked ? '' : $('name').value.trim();
+      addRow(nm, ''); addRow('', '');
+    }
+    updateSum(); clearErr('f-title');
+  });
+  function addRow(title, amount) {
+    if (document.querySelectorAll('.rrow').length >= 10) return;
+    const row = document.createElement('div');
+    row.className = 'rrow';
+    row.innerHTML = '<div class="rh"><span class="rno"></span><button type="button" class="rdel">✕ 刪除這張</button></div>' +
+      '<div class="lab">抬頭</div><input type="text" class="rt" maxlength="60" autocomplete="off" placeholder="個人姓名或公司、單位名稱">' +
+      '<div class="lab">金額（元）</div><input type="tel" class="ra" inputmode="numeric" placeholder="例如 3000">';
+    row.querySelector('.rt').value = title || '';
+    row.querySelector('.ra').value = amount || '';
+    row.querySelector('.ra').addEventListener('input', e => { e.target.value = toHalf(e.target.value).replace(/[^\d]/g, ''); updateSum(); clearErr('f-title'); });
+    row.querySelector('.rt').addEventListener('input', () => clearErr('f-title'));
+    row.querySelector('.rdel').onclick = () => { row.remove(); renumber(); updateSum(); };
+    $('rList').appendChild(row);
+    renumber();
+  }
+  function renumber() {
+    const rows = document.querySelectorAll('.rrow');
+    rows.forEach((r, i) => { r.querySelector('.rno').textContent = '第 ' + (i + 1) + ' 張'; r.querySelector('.rdel').hidden = rows.length <= 2; });
+    $('rAdd').hidden = rows.length >= 10;
+  }
+  function readRows() {
+    return Array.prototype.map.call(document.querySelectorAll('.rrow'), r => ({
+      title: r.querySelector('.rt').value.trim(),
+      amount: Number(r.querySelector('.ra').value) || 0,
+    }));
+  }
+  function updateSum() {
+    if (st.mode !== 'multi') return;
+    const total = Number(toHalf($('amount').value).replace(/\D/g, '')) || 0;
+    const sum = readRows().reduce((s, r) => s + r.amount, 0);
+    const el = $('rSum');
+    el.classList.toggle('ok', total > 0 && sum === total);
+    if (!total) el.textContent = '請先在第 2 題填寫捐款金額';
+    else if (sum === total) el.textContent = '✓ 合計 ' + fmt(sum) + ' 元，與捐款金額相符';
+    else el.textContent = '已填 ' + fmt(sum) + ' 元／捐款 ' + fmt(total) + ' 元（' + (sum < total ? '還差 ' + fmt(total - sum) : '多了 ' + fmt(sum - total)) + ' 元）';
+  }
+  $('rAdd').onclick = () => { addRow('', ''); updateSum(); };
+  $('amount').addEventListener('input', updateSum);
+
   function setErr(id, msg) {
     const f = $(id); f.classList.add('bad');
     const m = f.querySelector('.msg'); m.textContent = msg; m.hidden = false;
@@ -356,14 +430,22 @@
       amount: toHalf($('amount').value).replace(/\D/g, ''),
       last5: st.l5 || toHalf($('last5').value).trim(),
       receipt: st.receipt,
-      title: st.receipt === '需要' ? $('title').value.trim() : '',
+      title: st.receipt === '需要' && st.mode === 'single' ? $('title').value.trim() : '',
+      receiptMode: st.receipt === '需要' ? st.mode : '',
+      receipts: st.receipt === '需要' && st.mode === 'multi' ? readRows().filter(r => r.title || r.amount) : [],
     };
     const errs = [];
     if (!d.name) errs.push(['f-name', '請填寫捐款芳名，或勾選「不具名」']);
     if (!/^\d+$/.test(d.amount) || Number(d.amount) <= 0) errs.push(['f-amount', '請選擇或輸入金額']);
     if (!(st.l5 || /^\d{5}$/.test(d.last5))) errs.push(['f-last5', '請輸入 5 位數字；現金捐款請點下方按鈕']);
     if (!d.receipt) errs.push(['f-receipt', '請選擇「需要」或「不需要」']);
-    if (d.receipt === '需要' && !d.title) errs.push(['f-title', $('anon').checked && $('same').checked ? '不具名時請直接填寫收據抬頭' : '請填寫收據抬頭']);
+    if (d.receipt === '需要' && d.receiptMode === 'single' && !d.title) errs.push(['f-title', $('anon').checked && $('same').checked ? '不具名時請直接填寫收據抬頭' : '請填寫收據抬頭']);
+    if (d.receipt === '需要' && d.receiptMode === 'multi') {
+      const sum = d.receipts.reduce((s, r) => s + r.amount, 0);
+      if (d.receipts.length < 2) errs.push(['f-title', '分開多張收據時，請至少填寫 2 張']);
+      else if (d.receipts.some(r => !r.title || r.amount <= 0)) errs.push(['f-title', '每張收據都要填寫抬頭和金額']);
+      else if (/^\d+$/.test(d.amount) && sum !== Number(d.amount)) errs.push(['f-title', '各張收據金額合計 ' + fmt(sum) + ' 元，需等於捐款金額 ' + fmt(d.amount) + ' 元']);
+    }
     return { d, errs };
   }
 
@@ -383,7 +465,10 @@
       ['後五碼', d.last5],
       ['收據', d.receipt],
     ];
-    if (d.receipt === '需要') rows.push(['收據抬頭', d.title]);
+    if (d.receipt === '需要' && d.receiptMode === 'multi') {
+      rows[3] = ['收據', '分開 ' + d.receipts.length + ' 張'];
+      d.receipts.forEach((r, i) => rows.push(['第 ' + (i + 1) + ' 張', r.title + '\n' + fmt(r.amount) + ' 元']));
+    } else if (d.receipt === '需要') rows.push(['收據抬頭', d.title]);
     const dl = $('summary'); dl.innerHTML = '';
     rows.forEach(r => {
       const div = document.createElement('div');
