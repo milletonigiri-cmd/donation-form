@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>捐款登記</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+  /* ====== 只需要修改這兩行 ====== */
+  const LIFF_ID = '請填入 LIFF ID';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbx1JnYMtBJh_DLGmab8bLtmPHhfkwO5tvcFU6EFiRT1XbFkLrzaCOpaO4lSnHVCSaJ8eQ/exec';
+</script>
+<style>
+  :root {
+    --bg: #fff8f1;
+    --card: #ffffff;
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --line: #e7d8c9;
+    --brand: #c2410c;
+    --brand-soft: #ffedd5;
+    --ok: #15803d;
+    --err: #b91c1c;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: 20px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.5;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  [hidden] { display: none !important; }
+
+  header {
+    background: var(--brand); color: #fff;
+    padding: 22px 20px 20px;
+  }
+  header h1 { margin: 0; font-size: 1.6rem; letter-spacing: .05em; }
+  header p { margin: 4px 0 0; font-size: 1rem; opacity: .92; }
+
+  .wrap { padding: 16px; max-width: 560px; margin: 0 auto; }
+
+  .bank {
+    background: var(--brand-soft); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 18px;
+  }
+  .bank h2 { margin: 0 0 4px; font-size: .9rem; color: var(--brand); font-weight: 700; }
+  .bank pre {
+    margin: 0; font: inherit; font-size: 1.05rem; font-weight: 600;
+    white-space: pre-wrap; word-break: break-all;
+  }
+
+  .field {
+    background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 14px;
+  }
+  .field.bad { border-color: var(--err); }
+  .q { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
+  .n {
+    flex: none; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--brand); color: #fff; font-size: .9rem;
+    display: grid; place-items: center;
+  }
+  .hint { color: var(--muted); font-size: .85rem; margin: -4px 0 10px; }
+  .msg { color: var(--err); font-size: .9rem; font-weight: 600; margin-top: 8px; }
+
+  input[type=text], input[type=tel] {
+    width: 100%; height: 58px; padding: 0 14px;
+    font-size: 1.15rem; color: var(--ink);
+    border: 2px solid var(--line); border-radius: 10px; background: #fff;
+    outline: none;
+  }
+  input:focus { border-color: var(--brand); }
+  input:disabled { background: #f3f4f6; color: var(--muted); }
+
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+  .chips.two { grid-template-columns: 1fr 1fr; margin: 10px 0 0; }
+  .chips.one { grid-template-columns: 1fr; margin: 10px 0 0; }
+  .chip {
+    height: 54px; font-size: 1.05rem; font-weight: 600;
+    border: 2px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink);
+  }
+  .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .check {
+    display: flex; align-items: center; gap: 10px; margin-top: 12px;
+    font-size: 1.05rem; user-select: none;
+  }
+  .check input { width: 28px; height: 28px; accent-color: var(--brand); flex: none; }
+
+  .primary, .secondary {
+    display: block; width: 100%; height: 64px; border-radius: 14px;
+    font-size: 1.25rem; font-weight: 700; border: none; margin-top: 10px;
+  }
+  .primary { background: var(--brand); color: #fff; }
+  .primary:disabled { opacity: .6; }
+  .secondary { background: #fff; color: var(--ink); border: 2px solid var(--line); }
+
+  /* 確認畫面 */
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; z-index: 10; }
+  .sheet .panel {
+    background: var(--bg); width: 100%; max-width: 560px; margin: 0 auto;
+    border-radius: 20px 20px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom));
+    max-height: 92vh; overflow: auto;
+  }
+  .sheet h2 { margin: 0 0 12px; font-size: 1.35rem; }
+  dl { margin: 0; background: #fff; border-radius: var(--radius); border: 2px solid var(--line); }
+  dl div { display: flex; padding: 12px 14px; border-bottom: 1px solid var(--line); gap: 12px; }
+  dl div:last-child { border-bottom: none; }
+  dt { flex: none; width: 5em; color: var(--muted); }
+  dd { margin: 0; font-weight: 700; font-size: 1.1rem; word-break: break-all; }
+
+  /* 複製區 */
+  .copybox { margin-top: 22px; text-align: left; max-width: 520px; }
+  .copybox .step { font-size: 1.05rem; margin: 0 0 10px; }
+  .copytext {
+    background: #fff; border: 2px dashed var(--brand); border-radius: var(--radius);
+    padding: 16px; font-size: 1.2rem; font-weight: 700; text-align: center;
+    user-select: all; -webkit-user-select: all;
+  }
+  .copybox .tip { color: var(--muted); font-size: .95rem; margin-top: 14px; line-height: 1.7; }
+  .primary.copied { background: var(--ok); }
+
+  /* 載入、完成、錯誤 */
+  .screen { min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 24px 16px; }
+  .screen h2 { font-size: 1.6rem; margin: 12px 0 6px; }
+  .screen p { margin: 4px 0; font-size: 1.1rem; }
+  .big-icon {
+    width: 96px; height: 96px; border-radius: 50%; margin: 0 auto;
+    display: grid; place-items: center; font-size: 3rem; color: #fff; background: var(--ok);
+  }
+  .big-icon.err { background: var(--err); }
+  .spinner {
+    width: 48px; height: 48px; border: 5px solid var(--brand-soft); border-top-color: var(--brand);
+    border-radius: 50%; margin: 0 auto 14px; animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading" class="screen">
+  <div><div class="spinner"></div><p>載入中，請稍候…</p></div>
+</div>
+
+<main id="form" hidden>
+  <header>
+    <h1>捐款登記</h1>
+    <p id="eventName"></p>
+  </header>
+
+  <div class="wrap">
+    <section class="bank" id="bankBox" hidden>
+      <h2>匯款資訊</h2>
+      <pre id="bank"></pre>
+    </section>
+
+    <div class="field" id="f-name">
+      <div class="q"><span class="n">1</span>捐款芳名</div>
+      <input type="text" id="name" maxlength="30" autocomplete="off" placeholder="請輸入姓名">
+      <label class="check"><input type="checkbox" id="anon">不具名（接龍顯示「不具名」）</label>
+      <div class="msg" hidden></div>
+    </div>
+
+    <div class="field" id="f-amount">
+      <div class="q"><span class="n">2</span>捐款金額（元）</div>
+      <div class="chips" id="amountChips"></div>
+      <input type="tel" id="amount" inputmode="numeric" placeholder="或自行輸入金額">
+      <div class="msg" hidden></div>
+    </div>
+
+    <div class="field" id="f-last5">
+      <div class="q"><span class="n">3</span>匯款帳號後五碼</div>
+      <div class="hint">請先完成匯款，再填寫您匯款帳號的最後 5 碼</div>
+      <input type="tel" id="last5" inputmode="numeric" maxlength="5" placeholder="例如 12345">
+      <div class="chips one">
+        <button type="button" class="chip" data-l5="現金">現金捐款（沒有匯款）</button>
+      </div>
+      <div class="msg" hidden></div>
+    </div>
+
+    <div class="field" id="f-receipt">
+      <div class="q"><span class="n">4</span>需要開立收據嗎？</div>
+      <div class="chips two" style="margin-top:0">
+        <button type="button" class="chip" data-r="需要">需要</button>
+        <button type="button" class="chip" data-r="不需要">不需要</button>
+      </div>
+      <div class="msg" hidden></div>
+    </div>
+
+    <div class="field" id="f-title" hidden>
+      <div class="q"><span class="n">5</span>收據抬頭</div>
+      <input type="text" id="title" maxlength="60" autocomplete="off" placeholder="個人姓名或公司、單位名稱">
+      <label class="check"><input type="checkbox" id="same">同捐款芳名</label>
+      <div class="msg" hidden></div>
+    </div>
+
+    <button class="primary" id="nextBtn" type="button">下一步：確認資料</button>
+    <p style="height:24px"></p>
+  </div>
+</main>
+
+<div class="sheet" id="confirm" hidden>
+  <div class="panel">
+    <h2>請確認資料是否正確</h2>
+    <dl id="summary"></dl>
+    <button class="primary" id="sendBtn" type="button">確認送出</button>
+    <button class="secondary" id="backBtn" type="button">返回修改</button>
+  </div>
+</div>
+
+<div id="done" class="screen" hidden>
+  <div>
+    <div class="big-icon">✓</div>
+    <h2>登記完成</h2>
+    <p id="doneId"></p>
+    <p id="doneThanks"></p>
+    <div class="copybox">
+      <p class="step"><b>最後一步：</b>請把下面這句話貼到群組，<br>機器人就會更新捐款接龍。</p>
+      <div class="copytext" id="copyText"></div>
+      <button class="primary" id="copyBtn" type="button">① 複製這句話</button>
+      <button class="secondary" id="closeBtn" type="button">② 回到群組貼上送出</button>
+      <p class="tip">回到群組後，<b>長按輸入框 → 貼上 → 送出</b>。<br>不會貼上也沒關係，直接在群組打<b>「登記好了」</b>就可以。</p>
+    </div>
+  </div>
+</div>
+
+<div id="fatal" class="screen" hidden>
+  <div>
+    <div class="big-icon err">!</div>
+    <h2>無法開啟</h2>
+    <p id="fatalMsg"></p>
+    <p style="color:var(--muted);font-size:.95rem">請關閉此頁，回到 LINE 重新點一次按鈕。</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const toHalf = s => String(s).replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const fmt = n => String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const subId = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+
+  let idToken = '', groupId = '', lineName = '';
+  const st = { l5: '', receipt: '' };
+
+  function show(id) {
+    ['loading', 'form', 'done', 'fatal'].forEach(x => $(x).hidden = x !== id);
+  }
+  function fatal(msg) {
+    $('fatalMsg').textContent = msg;
+    show('fatal');
+  }
+
+  async function main() {
+    if (LIFF_ID.indexOf('請填入') === 0 || API_URL.indexOf('請填入') === 0) {
+      return fatal('管理者尚未完成設定（LIFF_ID / API_URL）。');
+    }
+    try {
+      await liff.init({ liffId: LIFF_ID });
+    } catch (e) {
+      return fatal('LINE 初始化失敗：' + (e.message || e));
+    }
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+
+    groupId = new URLSearchParams(location.search).get('g') || '';
+    idToken = liff.getIDToken() || '';
+
+    try {
+      const [profile, conf] = await Promise.all([
+        liff.getProfile().catch(() => null),
+        fetch(API_URL + '?action=config').then(r => r.json()),
+      ]);
+      lineName = (profile && profile.displayName) || '';
+      $('eventName').textContent = conf.event || '';
+      if (conf.info) { $('bank').textContent = conf.info; $('bankBox').hidden = false; }
+      buildAmounts(conf.amounts || []);
+      if (lineName) $('name').value = lineName;
+      show('form');
+    } catch (e) {
+      fatal('讀取資料失敗，請檢查網路。');
+    }
+  }
+
+  /* ---------- 表單互動 ---------- */
+  function buildAmounts(list) {
+    const box = $('amountChips');
+    if (!list.length) { box.hidden = true; return; }
+    list.forEach(a => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip'; b.dataset.a = a; b.textContent = fmt(a);
+      b.onclick = () => { $('amount').value = a; syncAmountChips(); clearErr('f-amount'); };
+      box.appendChild(b);
+    });
+  }
+  function syncAmountChips() {
+    const v = toHalf($('amount').value).replace(/\D/g, '');
+    document.querySelectorAll('[data-a]').forEach(b => b.classList.toggle('on', b.dataset.a === v));
+  }
+  $('amount').addEventListener('input', () => {
+    $('amount').value = toHalf($('amount').value).replace(/[^\d]/g, '');
+    syncAmountChips(); clearErr('f-amount');
+  });
+
+  $('anon').addEventListener('change', () => {
+    $('name').disabled = $('anon').checked;
+    if ($('same').checked) syncTitle();
+    clearErr('f-name');
+  });
+  $('name').addEventListener('input', () => { clearErr('f-name'); if ($('same').checked) syncTitle(); });
+
+  $('last5').addEventListener('input', () => {
+    $('last5').value = toHalf($('last5').value).replace(/[^\d]/g, '').slice(0, 5);
+    st.l5 = ''; syncL5(); clearErr('f-last5');
+  });
+  document.querySelectorAll('[data-l5]').forEach(b => b.onclick = () => {
+    st.l5 = st.l5 === b.dataset.l5 ? '' : b.dataset.l5;
+    if (st.l5) $('last5').value = '';
+    syncL5(); clearErr('f-last5');
+  });
+  function syncL5() {
+    document.querySelectorAll('[data-l5]').forEach(b => b.classList.toggle('on', b.dataset.l5 === st.l5));
+  }
+
+  document.querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
+    st.receipt = b.dataset.r;
+    document.querySelectorAll('[data-r]').forEach(x => x.classList.toggle('on', x === b));
+    $('f-title').hidden = st.receipt !== '需要';
+    clearErr('f-receipt');
+  });
+
+  $('same').addEventListener('change', () => { syncTitle(); clearErr('f-title'); });
+  $('title').addEventListener('input', () => clearErr('f-title'));
+  function currentName() { return $('anon').checked ? '不具名' : $('name').value.trim(); }
+  function syncTitle() {
+    const on = $('same').checked;
+    $('title').disabled = on;
+    if (on) $('title').value = $('anon').checked ? '' : $('name').value.trim();
+  }
+
+  function setErr(id, msg) {
+    const f = $(id); f.classList.add('bad');
+    const m = f.querySelector('.msg'); m.textContent = msg; m.hidden = false;
+  }
+  function clearErr(id) {
+    const f = $(id); f.classList.remove('bad');
+    f.querySelector('.msg').hidden = true;
+  }
+
+  function collect() {
+    const d = {
+      anon: $('anon').checked,
+      name: currentName(),
+      amount: toHalf($('amount').value).replace(/\D/g, ''),
+      last5: st.l5 || toHalf($('last5').value).trim(),
+      receipt: st.receipt,
+      title: st.receipt === '需要' ? $('title').value.trim() : '',
+    };
+    const errs = [];
+    if (!d.name) errs.push(['f-name', '請填寫捐款芳名，或勾選「不具名」']);
+    if (!/^\d+$/.test(d.amount) || Number(d.amount) <= 0) errs.push(['f-amount', '請選擇或輸入金額']);
+    if (!(st.l5 || /^\d{5}$/.test(d.last5))) errs.push(['f-last5', '請輸入 5 位數字；現金捐款請點下方按鈕']);
+    if (!d.receipt) errs.push(['f-receipt', '請選擇「需要」或「不需要」']);
+    if (d.receipt === '需要' && !d.title) errs.push(['f-title', $('anon').checked && $('same').checked ? '不具名時請直接填寫收據抬頭' : '請填寫收據抬頭']);
+    return { d, errs };
+  }
+
+  let pending = null;
+  $('nextBtn').onclick = () => {
+    const { d, errs } = collect();
+    ['f-name', 'f-amount', 'f-last5', 'f-receipt', 'f-title'].forEach(clearErr);
+    if (errs.length) {
+      errs.forEach(e => setErr(e[0], e[1]));
+      $(errs[0][0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    pending = d;
+    const rows = [
+      ['捐款芳名', d.name],
+      ['捐款金額', fmt(d.amount) + ' 元'],
+      ['後五碼', d.last5],
+      ['收據', d.receipt],
+    ];
+    if (d.receipt === '需要') rows.push(['收據抬頭', d.title]);
+    const dl = $('summary'); dl.innerHTML = '';
+    rows.forEach(r => {
+      const div = document.createElement('div');
+      const dt = document.createElement('dt'); dt.textContent = r[0];
+      const dd = document.createElement('dd'); dd.textContent = r[1];
+      div.append(dt, dd); dl.appendChild(div);
+    });
+    $('confirm').hidden = false;
+  };
+  $('backBtn').onclick = () => { $('confirm').hidden = true; };
+
+  $('sendBtn').onclick = async () => {
+    const btn = $('sendBtn');
+    btn.disabled = true; btn.textContent = '送出中…';
+    $('backBtn').disabled = true;
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify(Object.assign({ action: 'submit', idToken, g: groupId, subId }, pending)),
+      }).then(r => r.json());
+      if (!res.ok) throw new Error(res.msg || '送出失敗');
+
+      $('confirm').hidden = true;
+      $('doneId').textContent = '登記編號 #' + res.id;
+      $('doneThanks').textContent = '感謝 ' + pending.name + ' 的愛心';
+      $('copyText').textContent = '🙏 我已完成捐款登記（#' + res.id + '）';
+      show('done');
+    } catch (e) {
+      alert((e && e.message) || '送出失敗，請檢查網路後再按一次「確認送出」。');
+      btn.disabled = false; btn.textContent = '確認送出';
+      $('backBtn').disabled = false;
+    }
+  };
+
+  $('copyBtn').onclick = async () => {
+    const text = $('copyText').textContent;
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {}
+    if (!ok) {
+      // 舊版手機的備用複製方式
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      ta.remove();
+    }
+    const b = $('copyBtn');
+    if (ok) { b.textContent = '✓ 已複製！請按下方「回到群組」'; b.classList.add('copied'); }
+    else { b.textContent = '請長按上面那句話自行複製'; }
+  };
+
+  $('closeBtn').onclick = () => {
+    if (liff.isInClient()) liff.closeWindow(); else window.close();
+  };
+
+  main();
+})();
+</script>
+</body>
+</html>
